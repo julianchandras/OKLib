@@ -1,0 +1,13 @@
+diff --git a/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java b/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
+index 478bdd3b8a0..b2159491315 100644
+--- a/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
++++ b/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
+@@ -100,7 +100,7 @@ public static void initWebHdfs(Configuration conf, String hostname,
+ 
+     // add webhdfs packages
+     httpServer2.addJerseyResourcePackage(
+-        jerseyResourcePackage + ";" + Param.class.getPackage().getName(),
++        jerseyResourcePackage + ";" + "org.apache.hadoop.hdfs.web.resources",
+         pathSpec);
+   }
+ 

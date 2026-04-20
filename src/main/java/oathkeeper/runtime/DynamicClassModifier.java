@@ -280,7 +280,9 @@ public class DynamicClassModifier {
             initFromConfigFile();
             initFromDiffFileFromCommit(true);
             excludeSpecifiedClasses();
-            appendTrackedStates();
+            // Commented out to not include all fields,
+            // and only include the ones specified manually instead
+            // appendTrackedStates();
             //dumpInstrumentPoints();
         }
         else if(ConfigManager.getGentraceInstrumentMode().equals(ConfigManager.InstrumentMode.SPECIFIED_SELECTIVE)) {
@@ -337,6 +339,7 @@ public class DynamicClassModifier {
                 new MemberUsageScanner());
         try {
             for (String fieldKey : stateFields.keySet()) {
+                System.out.println("Scanning the usage of field " + fieldKey);
                 for (String str : reflections.getStore().get(MemberUsageScanner.class.getSimpleName(), fieldKey)) {
                     System.out.println(str);
                     stateAccessPoints.add(parse(str, fieldKey));
@@ -396,6 +399,10 @@ public class DynamicClassModifier {
                     if(disabledList.contains(cNameNoMethod+"@"+methodName))
                     {
                         System.out.println("Skip unwanted method:"+ cNameNoMethod+"@"+methodName);
+                        continue;
+                    }
+
+                    if (m.isEmpty()) {
                         continue;
                     }
 
@@ -514,6 +521,7 @@ public class DynamicClassModifier {
                                 + stateFields.get(stateAccessPoint.fieldName) + ");}";
                         //why takes two phase? because some stmts report stack error
                         int realLoc = m.insertAt(attmeptedLoc, false, stmt);
+                        System.out.println("try to instrument at " + realLoc);
                         //it seems only when moving to different location seems to be safe
                         //and another pattern is like:
                         //instrument now for org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature.namespaceString() at 241
@@ -539,8 +547,8 @@ public class DynamicClassModifier {
                             //first try but not really insert
                                 m.insertAt(attmeptedLoc, false, stmt);
                         //TODO: revert after failing here
-                        m.insertAt(attmeptedLoc, true, stmt);
-                        System.out.println("instrument at " + realLoc);
+                        m.insertAt(realLoc, true, stmt);
+                        // System.out.println("instrument at " + realLoc);
                             //}
 
                         lastMethodName = m.getLongName();
@@ -583,14 +591,21 @@ public class DynamicClassModifier {
     }
 
     public void writeToClasses() {
+        int succDumpCounter = 0;
+        int failDumpCounter = 0;
         for (CtClass ctClass : toDumpClasses.values()) {
             try {
                 ctClass.toClass();
+                succDumpCounter++;
+                System.out.println("Successfully dump " + ctClass.getName());
             } catch (Exception ex) {
+                failDumpCounter++;
+                System.out.println("Fail to dump " + ctClass.getName());
                 ex.printStackTrace();
             }
         }
         System.out.println("Instrument classes finished");
+        System.out.println("succDumpCounter" + succDumpCounter + " failDumpCounter" + failDumpCounter);
     }
 
     //we want to cut at the end of test methods so our invs wouldn't include some boring events like "shutdown"

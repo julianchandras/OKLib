@@ -134,8 +134,12 @@ public class DynamicClassModifier {
             if(str.equals(""))
                 continue;
 
-            String fieldName = str.split("\\^")[0];
-            String valMethodName = str.split("\\^")[1];
+            String[] instItem = str.split("\\^", -1);
+            String fieldName = instItem[0];
+            String valMethodName = "";
+            if (instItem.length > 1) {
+                valMethodName = instItem[1];
+            }
             stateFields.put(fieldName, valMethodName);
         }
         opInstClasses.addAll(Arrays.asList(ConfigManager.config.getStringArray(ConfigManager.INSTRUMENT_CLASS_ALLMETHODS_KEY)));
@@ -229,7 +233,7 @@ public class DynamicClassModifier {
                             field.getType().getName().equals("java.util.HashMap") ||
                             field.getType().getName().equals("java.util.List")) {
                         String fullName = clazz + "." + field.getName();
-                        stateFields.put(fullName, ".size()");
+                        stateFields.putIfAbsent(fullName, ".size()");
                     }
 
 //                    if (field.getType().getName().equals("java.lang.Long") ||
@@ -287,7 +291,7 @@ public class DynamicClassModifier {
             excludeSpecifiedClasses();
             // Commented out to not include all fields,
             // and only include the ones specified manually instead
-            // appendTrackedStates();
+            appendTrackedStates();
             //dumpInstrumentPoints();
         }
         else if(ConfigManager.getGentraceInstrumentMode().equals(ConfigManager.InstrumentMode.SPECIFIED_SELECTIVE)) {
@@ -663,8 +667,8 @@ public class DynamicClassModifier {
                                             .replace("\\", "\\\\")
                                             .replace("\"", "\\\"");
 
-                                        String reflectionValueExpr;
-                                        if (f.isStatic()) {
+                                    String reflectionValueExpr;
+                                    if (f.isStatic()) {
                                         reflectionValueExpr = DynamicClassModifier.class.getName()
                                             + ".readStateValueByReflection(null, \""
                                             + f.getClassName()
@@ -673,7 +677,7 @@ public class DynamicClassModifier {
                                             + "\", \""
                                             + escapedSuffix
                                             + "\")";
-                                        } else {
+                                    } else {
                                         reflectionValueExpr = DynamicClassModifier.class.getName()
                                             + ".readStateValueByReflection($0, \""
                                             + f.getClassName()
@@ -682,16 +686,16 @@ public class DynamicClassModifier {
                                             + "\", \""
                                             + escapedSuffix
                                             + "\")";
-                                        }
+                                    }
 
-                                        String eventStmt = EventTracer.class.getName()
-                                            + ".registerStateEvent(\""
-                                            + accessedFieldKey
-                                            + "\",\""
-                                            + methodName
-                                            + "\", (long)"
-                                            + reflectionValueExpr
-                                            + ");";
+                                    String eventStmt = EventTracer.class.getName()
+                                        + ".registerStateEvent(\""
+                                        + accessedFieldKey
+                                        + "\",\""
+                                        + methodName
+                                        + "\", (long)"
+                                        + reflectionValueExpr
+                                        + ");";
 
                                     if (f.isReader()) {
                                         f.replace("{ $_ = $proceed($$); " + eventStmt + " }");

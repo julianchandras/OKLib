@@ -1,9 +1,12 @@
 package oathkeeper.runtime;
 
+import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtField;
 import javassist.CtMethod;
+import javassist.expr.ExprEditor;
+import javassist.expr.FieldAccess;
 import oathkeeper.runtime.event.MarkerEvent;
 import oathkeeper.runtime.event.OpTriggerEvent;
 import oathkeeper.runtime.event.StateUpdateEvent;
@@ -16,6 +19,8 @@ import org.reflections8.scanners.MemberUsageScanner;
 import org.reflections8.scanners.SubTypesScanner;
 
 import java.io.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
@@ -331,6 +336,122 @@ public class DynamicClassModifier {
         return longName.substring(p1 + 1);
     }
 
+    private static Field findFieldInHierarchy(Class<?> ownerClass, String fieldName) {
+        Class<?> current = ownerClass;
+        while (current != null) {
+            try {
+                Field f = current.getDeclaredField(fieldName);
+                f.setAccessible(true);
+                return f;
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static Method findZeroArgMethodInHierarchy(Class<?> ownerClass, String methodName) {
+        Class<?> current = ownerClass;
+        while (current != null) {
+            try {
+                Method m = current.getDeclaredMethod(methodName);
+                m.setAccessible(true);
+                return m;
+            } catch (NoSuchMethodException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static Object applyAccessorChain(Object value, String valMethodSuffix) throws Throwable {
+        if (value == null || valMethodSuffix == null || valMethodSuffix.trim().isEmpty()) {
+            return value;
+        }
+
+        String expr = valMethodSuffix.trim();
+        int cursor = 0;
+        Object current = value;
+        while (cursor < expr.length()) {
+            if (current == null) {
+                return null;
+            }
+
+            if (expr.charAt(cursor) != '.') {
+                break;
+            }
+            cursor++;
+
+            int start = cursor;
+            while (cursor < expr.length()) {
+                char ch = expr.charAt(cursor);
+                if (Character.isJavaIdentifierPart(ch)) {
+                    cursor++;
+                } else {
+                    break;
+                }
+            }
+            if (start == cursor) {
+                break;
+            }
+            String methodName = expr.substring(start, cursor);
+
+            if (cursor + 1 >= expr.length() || expr.charAt(cursor) != '(' || expr.charAt(cursor + 1) != ')') {
+                break;
+            }
+            cursor += 2;
+
+            Method method = findZeroArgMethodInHierarchy(current.getClass(), methodName);
+            if (method == null) {
+                return null;
+            }
+            current = method.invoke(current);
+        }
+        return current;
+    }
+
+    private static long coerceToLong(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof Boolean) {
+            return ((Boolean) value) ? 1L : 0L;
+        }
+        if (value instanceof Map) {
+            return ((Map<?, ?>) value).size();
+        }
+        if (value instanceof Collection) {
+            return ((Collection<?>) value).size();
+        }
+        if (value.getClass().isArray()) {
+            return java.lang.reflect.Array.getLength(value);
+        }
+        return 0L;
+    }
+
+    public static long readStateValueByReflection(
+            Object target,
+            String ownerClassName,
+            String fieldName,
+            String valMethodSuffix) {
+        try {
+            Class<?> ownerClass = Class.forName(ownerClassName);
+            Field f = findFieldInHierarchy(ownerClass, fieldName);
+            if (f == null) {
+                return 0L;
+            }
+
+            Object value = f.get(target);
+            Object transformedValue = applyAccessorChain(value, valMethodSuffix);
+            return coerceToLong(transformedValue);
+        } catch (Throwable ex) {
+            return 0L;
+        }
+    }
+
     private Map<String, List<StateAccessPoint>> scan() {
         List<StateAccessPoint> stateAccessPoints = new ArrayList<>();
 
@@ -463,10 +584,6 @@ public class DynamicClassModifier {
                 CtClass cc = pool.get(cName);
                 cc.defrost();
 
-
-                String lastMethodName = "";
-                int lastLineNum = -1;
-
                 //important, we found that if a method contains several inject points, it's very likely to cause problems like
                 // 1) testCreateAfterCloseShouldFail(org.apache.zookeeper.test.SessionInvalidationTest)
                 // java.lang.VerifyError: (class: org/apache/zookeeper/common/PathTrie$TrieNode, method: getChild signature: (Ljava/lang/String;)Lorg/apache/zookeeper/common/PathTrie$TrieNode;) Stack size too large
@@ -481,8 +598,6 @@ public class DynamicClassModifier {
                 //         at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
                 //         at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
 
-                //thus we would discard injecting for multiple hook points in one method
-                //(even just allow single one would still be problematic)
                 List<StateAccessPoint> points = map.get(cName);
                 Map<String, List<StateAccessPoint>> pByMethodName = new HashMap<>();
                 for(StateAccessPoint p: points)
@@ -490,83 +605,116 @@ public class DynamicClassModifier {
                     pByMethodName.putIfAbsent(p.methodName,new ArrayList<>());
                     pByMethodName.get(p.methodName).add(p);
                 }
-                pByMethodName.entrySet().removeIf(entry -> entry.getValue().size() > 1);
 
-                for (StateAccessPoint stateAccessPoint : pByMethodName.values().stream()
-                        .flatMap(Collection::stream)
-                        .collect(Collectors.toList())) {
-                    if (stateAccessPoint.methodName.contains("<init>"))
+                for (Map.Entry<String, List<StateAccessPoint>> entry : pByMethodName.entrySet()) {
+                    String methodName = entry.getKey();
+                    if (methodName.contains("<init>"))
                         continue;
-                    if (stateAccessPoint.methodName.contains("$"))
+                    if (methodName.contains("$"))
                         continue;
 
-                    if (allowedSet != null && !allowedSet.contains(stateAccessPoint.fieldName))
-                        continue;
-
-                    String fullName = stateAccessPoint.className+"@"+stateAccessPoint.methodName;
-                    if(disabledList.contains(fullName))
-                    {
-                        System.out.println("Skip unwanted method:"+ fullName);
+                    String fullName = cName + "@" + methodName;
+                    if (disabledList.contains(fullName)) {
+                        System.out.println("Skip unwanted method:" + fullName);
                         continue;
                     }
 
-                    CtMethod m = cc.getDeclaredMethod(stateAccessPoint.methodName);
-                    System.out.println("instrument now for " + m.getLongName() + " at " + (stateAccessPoint.lineNum + 1));
-                    try {
-                        //should insert AFTER the op
-                        int attmeptedLoc = stateAccessPoint.lineNum + 1;
-                        String stmt = "{"+EventTracer.class.getName()+".registerStateEvent(\"" + stateAccessPoint.fieldName + "\",\""
-                                + stateAccessPoint.methodName + "\", (long) "
-                                + getStateShortName(stateAccessPoint.fieldName)
-                                + stateFields.get(stateAccessPoint.fieldName) + ");}";
-                        //why takes two phase? because some stmts report stack error
-                        int realLoc = m.insertAt(attmeptedLoc, false, stmt);
-                        System.out.println("try to instrument at " + realLoc);
-                        //it seems only when moving to different location seems to be safe
-                        //and another pattern is like:
-                        //instrument now for org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature.namespaceString() at 241
-                        //instrument at 241
-                        //instrument now for org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature.namespaceString() at 242
-                        //instrument at 241
-                        //javassist.CannotCompileException: by javassist.bytecode.BadBytecode: namespaceString ()Ljava/lang/String; in org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature: inconsistent stack height 5
-                        //	at javassist.CtBehavior.insertAt(CtBehavior.java:1309)
-                        //	at ok.runtime.DyInster.modifyStateAccess(DyInster.java:181)
-                        //	at ok.runtime.DyInster.modifyAll(DyInster.java:220)
-                        //	at org.apache.hadoop.hdfs.ok.TestEngine.main(TestEngine.java:114)
-                        //Caused by: javassist.bytecode.BadBytecode: namespaceString ()Ljava/lang/String; in org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature: inconsistent stack height 5
-                        //	at javassist.bytecode.stackmap.MapMaker.make(MapMaker.java:119)
-                        //	at javassist.bytecode.MethodInfo.rebuildStackMap(MethodInfo.java:458)
-                        //	at javassist.bytecode.MethodInfo.rebuildStackMapIf6(MethodInfo.java:440)
-                        //	at javassist.CtBehavior.insertAt(CtBehavior.java:1299)
-                        //	... 3 more
+                    List<String> targetStateFields = entry.getValue().stream()
+                            .map(p -> p.fieldName)
+                            .filter(fieldName -> allowedSet == null || allowedSet.contains(fieldName))
+                            .distinct()
+                            .collect(Collectors.toList());
+                    if (targetStateFields.isEmpty()) {
+                        continue;
+                    }
 
-                        //case2
-                        if (!((lastMethodName.equals(m.getLongName()) && lastLineNum == realLoc)))
-                            //case1
-                            //if (realLoc != attmeptedLoc) {
-                            //first try but not really insert
-                                m.insertAt(attmeptedLoc, false, stmt);
-                        //TODO: revert after failing here
-                        m.insertAt(realLoc, true, stmt);
-                        // System.out.println("instrument at " + realLoc);
-                            //}
+                    List<CtMethod> candidateMethods = Arrays.stream(cc.getDeclaredMethods())
+                            .filter(m -> m.getName().equals(methodName))
+                            .collect(Collectors.toList());
+                    if (candidateMethods.isEmpty()) {
+                        continue;
+                    }
 
-                        lastMethodName = m.getLongName();
-                        lastLineNum = realLoc;
-
-                        //pre-init for event map
-                        event.stateName = stateAccessPoint.fieldName;
-                        event.sourceMethodName = stateAccessPoint.methodName;
-                        if (!EventTracer.instance.eventMap.containsKey(event.getMapKey())) {
-                            EventTracer.instance.eventMap.put(event.getMapKey(), EventListBuilder.buildEventList(event.getClass()));
+                    for (CtMethod m : candidateMethods) {
+                        if (m.isEmpty()) {
+                            continue;
                         }
 
+                        final Set<String> targetFieldSet = new HashSet<>(targetStateFields);
+                        try {
+                            m.instrument(new ExprEditor() {
+                                @Override
+                                public void edit(FieldAccess f) throws CannotCompileException {
+                                    if (!f.isReader() && !f.isWriter()) {
+                                        return;
+                                    }
 
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                        continue;
+                                    String accessedFieldKey = f.getClassName() + "." + f.getFieldName();
+                                    if (!targetFieldSet.contains(accessedFieldKey)) {
+                                        return;
+                                    }
+
+                                    String valMethodSuffix = stateFields.get(accessedFieldKey);
+                                    if (valMethodSuffix == null) {
+                                        return;
+                                    }
+
+                                    String escapedSuffix = valMethodSuffix
+                                            .replace("\\", "\\\\")
+                                            .replace("\"", "\\\"");
+
+                                        String reflectionValueExpr;
+                                        if (f.isStatic()) {
+                                        reflectionValueExpr = DynamicClassModifier.class.getName()
+                                            + ".readStateValueByReflection(null, \""
+                                            + f.getClassName()
+                                            + "\", \""
+                                            + f.getFieldName()
+                                            + "\", \""
+                                            + escapedSuffix
+                                            + "\")";
+                                        } else {
+                                        reflectionValueExpr = DynamicClassModifier.class.getName()
+                                            + ".readStateValueByReflection($0, \""
+                                            + f.getClassName()
+                                            + "\", \""
+                                            + f.getFieldName()
+                                            + "\", \""
+                                            + escapedSuffix
+                                            + "\")";
+                                        }
+
+                                        String eventStmt = EventTracer.class.getName()
+                                            + ".registerStateEvent(\""
+                                            + accessedFieldKey
+                                            + "\",\""
+                                            + methodName
+                                            + "\", (long)"
+                                            + reflectionValueExpr
+                                            + ");";
+
+                                    if (f.isReader()) {
+                                        f.replace("{ $_ = $proceed($$); " + eventStmt + " }");
+                                    } else {
+                                        f.replace("{ $proceed($$); " + eventStmt + " }");
+                                    }
+                                }
+                            });
+
+                            System.out.println("instrument now for " + m.getLongName() + " via field-access hooks");
+
+                            for (String fieldName : targetStateFields) {
+                                event.stateName = fieldName;
+                                event.sourceMethodName = methodName;
+                                if (!EventTracer.instance.eventMap.containsKey(event.getMapKey())) {
+                                    EventTracer.instance.eventMap.put(event.getMapKey(), EventListBuilder.buildEventList(event.getClass()));
+                                }
+                            }
+                            localCounter++;
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }
-                    localCounter++;
                 }
 
                 //drafts

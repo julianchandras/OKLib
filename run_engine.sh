@@ -2,7 +2,8 @@
 #This is the running script for tool interfaces
 
 #constants
-single_command_timeout_threshold=4h
+# Can be overridden via env (OK_SINGLE_COMMAND_TIMEOUT_THRESHOLD) and then by conf file.
+single_command_timeout_threshold=${OK_SINGLE_COMMAND_TIMEOUT_THRESHOLD:-4h}
 
 ok_dir=$(cd "$(dirname "${BASH_SOURCE-$0}")"; pwd)
 
@@ -409,6 +410,13 @@ fi
 conf_file_path=$2
 conf_file_realpath=$(realpath ${conf_file_path})
 source ${conf_file_path}
+
+# Keep a sane default when conf accidentally clears it.
+if [[ -z "${single_command_timeout_threshold}" ]]; then
+    single_command_timeout_threshold=4h
+fi
+echo "single_command_timeout_threshold: ${single_command_timeout_threshold}"
+
 full_class_path=${test_classes_dir_path}:${java_class_path}:${ok_lib}
 
 if [[ $1 == "test" ]]

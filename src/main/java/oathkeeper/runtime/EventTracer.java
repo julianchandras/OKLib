@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static oathkeeper.runtime.ConfigManager.TIME_WINDOW_LENGTH_IN_MILLIS_KEY;
@@ -40,11 +40,10 @@ public class EventTracer implements Iterable<SemanticEvent> {
     static AtomicInteger eventCounter = new AtomicInteger(0);
 
     static int MAX_EVENT_QUEUE_SIZE = Integer.MAX_VALUE - 1;
-    //public List<SemanticEvent> eventQueue = Collections.synchronizedList(new ArrayList());
     //we assume the events in this queue should be totally ordered based on system time
-    //we use CopyOnWriteArrayList to avoid ConcurrentModificationException when serializing
-    //TODO: this seems introduce significant performance overhead
-    public List<SemanticEvent> eventQueue = new CopyOnWriteArrayList<SemanticEvent>();
+    //ConcurrentLinkedQueue avoids global write-lock contention under heavy multi-threaded event emission.
+    //For operations that need positional access, use snapshotEventQueue().
+    public Queue<SemanticEvent> eventQueue = new ConcurrentLinkedQueue<SemanticEvent>();
     //to accelerate verifying, we would store each event based on their type, and would only use those involved in the context
     //to rebuild the queue (virtually)
     // mark transient to be excluded from serialization
@@ -170,31 +169,19 @@ public class EventTracer implements Iterable<SemanticEvent> {
     public Set<SemanticEvent> getEventSet() {
         return new HashSet<>(eventQueue);
     }
+
+    private List<SemanticEvent> snapshotEventQueue() {
+        return new ArrayList<>(eventQueue);
+    }
+
     @Override
     public Iterator<SemanticEvent> iterator() {
-        return new Iterator<SemanticEvent>() {
-
-            private int currentIndex = 0;
-
-            @Override
-            public boolean hasNext() {
-                return currentIndex < getQueueSize();
-            }
-
-            @Override
-            public SemanticEvent next() {
-                return eventQueue.get(currentIndex++);
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+        return snapshotEventQueue().iterator();
     }
 
     public ListIterator<SemanticEvent> iteratorAtTail() {
-        return eventQueue.listIterator(eventQueue.size());
+        List<SemanticEvent> snapshot = snapshotEventQueue();
+        return snapshot.listIterator(snapshot.size());
     }
 
     public Iterator<SemanticEvent> iterator(Context context) {
@@ -351,9 +338,12 @@ public class EventTracer implements Iterable<SemanticEvent> {
     //this would only be called in infer phase, so it's fine directly operating on the eventqueue
     public void filterAfterMarkerEvents(int marker) {
         //we may falsely insert some marker events at the end of some methods, so only use the last one here
-        int index = this.eventQueue.lastIndexOf(new MarkerEvent(marker));
-        if (index != -1)
-            this.eventQueue = this.eventQueue.subList(0, index);
+        List<SemanticEvent> snapshot = snapshotEventQueue();
+        int index = snapshot.lastIndexOf(new MarkerEvent(marker));
+        if (index != -1) {
+            this.eventQueue = new ConcurrentLinkedQueue<>(snapshot.subList(0, index));
+            this.queueSize = this.eventQueue.size();
+        }
     }
 
     public String getStatefulName() {
@@ -365,17 +355,27 @@ public class EventTracer implements Iterable<SemanticEvent> {
         return GsonUtils.gsonPrettyPrinter.fromJson(json, EventTracer.class);
     }
 
+    private static EventTracer snapshotForSerialization(EventTracer tracer) {
+        EventTracer snapshot = new EventTracer();
+        snapshot.tracerName = tracer.tracerName;
+        snapshot.mode = tracer.mode;
+        snapshot.running_under_prod_mode = tracer.running_under_prod_mode;
+        snapshot.force_disable_enqueue_events = tracer.force_disable_enqueue_events;
+        snapshot.time_window_length_in_millis = tracer.time_window_length_in_millis;
+        snapshot.eventQueue = new ConcurrentLinkedQueue<>(tracer.eventQueue);
+        snapshot.queueSize = snapshot.eventQueue.size();
+        return snapshot;
+    }
+
     public static String serialize(EventTracer tracer) {
-        synchronized (tracer)
+        try {
+            // Serialize a detached snapshot to avoid contention and concurrent mutation issues.
+            return GsonUtils.gsonPrettyPrinter.toJson(snapshotForSerialization(tracer));
+        } catch (java.lang.OutOfMemoryError ex)
         {
-            try {
-                return GsonUtils.gsonPrettyPrinter.toJson(tracer);
-            } catch (java.lang.OutOfMemoryError ex)
-            {
-                System.err.println("OOM ERROR: potential solution is, checking if in the rules we instrument too many," +
-                        "we should customize to instrument the most important ones");
-                throw ex;
-            }
+            System.err.println("OOM ERROR: potential solution is, checking if in the rules we instrument too many," +
+                    "we should customize to instrument the most important ones");
+            throw ex;
         }
     }
 

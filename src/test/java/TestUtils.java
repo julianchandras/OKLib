@@ -4,6 +4,7 @@ import oathkeeper.runtime.FileLayoutManager;
 import oathkeeper.runtime.invariant.Invariant;
 import traces.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TestUtils {
@@ -50,13 +51,13 @@ public class TestUtils {
     public static Invariant.InvState loadAndVerifyPatched_v1(String traceFilePrefix, Invariant inv)
     {
         EventTracer patchedTracer = EventTracer.loadFromFile(traceFilePrefix + EventTracer.PATCHED_SUFFIX);
-        return inv.verify_v1(patchedTracer.eventQueue);
+        return inv.verify_v1(new ArrayList<>(patchedTracer.eventQueue));
     }
 
     public static Invariant.InvState loadAndVerifyUnpatched_v1(String traceFilePrefix, Invariant inv)
     {
         EventTracer unpatchedTracer = EventTracer.loadFromFile(traceFilePrefix + EventTracer.UNPATCHED_SUFFIX);
-        return inv.verify_v1(unpatchedTracer.eventQueue);
+        return inv.verify_v1(new ArrayList<>(unpatchedTracer.eventQueue));
     }
 
     public static boolean containsInvariantType(List<Invariant> lst, String templateName) {

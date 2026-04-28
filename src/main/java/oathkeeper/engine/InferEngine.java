@@ -90,20 +90,22 @@ public class InferEngine {
         public List<Invariant> infer_v1() {
 
             List<Invariant> genInvs = new ArrayList<>();
-            Set<SemanticEvent> candidateEvents = new HashSet<>(patchedTracer.eventQueue);
+            List<SemanticEvent> patchedEvents = new ArrayList<>(patchedTracer.eventQueue);
+            List<SemanticEvent> unpatchedEvents = new ArrayList<>(unpatchedTracer.eventQueue);
+            Set<SemanticEvent> candidateEvents = new HashSet<>(patchedEvents);
             //previously we only leave diff events to form potentially interesting context, but this may not hold for some semantics
-            //candidateEvents.removeAll(unpatchedTracer.eventQueue);
+            //candidateEvents.removeAll(unpatchedEvents);
             System.out.println("candidateEvents size:" + candidateEvents.size());
 
             for (TemplateV1 template : TemplateManager.templatePool_v1) {
-                List<Invariant> patchedInvs = template.infer(patchedTracer.eventQueue, candidateEvents);
+                List<Invariant> patchedInvs = template.infer(patchedEvents, candidateEvents);
 
                 System.out.println("patchedInvs size:" + patchedInvs.size());
 
                 int count = 0;
                 //we should highlight rules that hold in patched version but not hold in unpatched version
                 for (Invariant inv : patchedInvs) {
-                    if (!ifStateNotFail(inv.verify_v1(unpatchedTracer.eventQueue))) {
+                    if (!ifStateNotFail(inv.verify_v1(unpatchedEvents))) {
                         count++;
                         //if inferred rule does not pass unpatched traces, add it to output
                         genInvs.add(inv);
@@ -129,10 +131,10 @@ public class InferEngine {
                 int failedCount = 0;
                 int inactiveCount = 0;
                 for (Invariant inv : genInvs) {
-                    if (inv.verify_v1(patchedTracer.eventQueue).equals(Invariant.InvState.FAIL)) {
+                    if (inv.verify_v1(patchedEvents).equals(Invariant.InvState.FAIL)) {
                         failedCount++;
                     }
-                    if (inv.verify_v1(patchedTracer.eventQueue).equals(Invariant.InvState.INACTIVE)) {
+                    if (inv.verify_v1(patchedEvents).equals(Invariant.InvState.INACTIVE)) {
                         inactiveCount++;
                     }
                 }

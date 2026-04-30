@@ -5,6 +5,7 @@ import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtField;
 import javassist.CtMethod;
+import javassist.NotFoundException;
 import javassist.expr.ExprEditor;
 import javassist.expr.FieldAccess;
 import oathkeeper.runtime.event.MarkerEvent;
@@ -12,7 +13,6 @@ import oathkeeper.runtime.event.OpTriggerEvent;
 import oathkeeper.runtime.event.StateUpdateEvent;
 import oathkeeper.runtime.eventlist.EventListBuilder;
 import oathkeeper.runtime.gson.GsonUtils;
-import oathkeeper.runtime.eventlist.CircularBuffer;
 import oathkeeper.runtime.utils.BashUtil;
 import org.reflections8.Reflections;
 import org.reflections8.scanners.MemberUsageScanner;
@@ -225,7 +225,7 @@ public class DynamicClassModifier {
         for (String clazz : opInstClasses) {
             try {
                 ClassPool pool = ClassPool.getDefault();
-                CtClass cc = pool.get(clazz);
+                CtClass cc = resolveCtClass(pool, clazz);
                 for (CtField field : cc.getDeclaredFields()) {
                     //TODO: fix this
                     //if(Collection.class.isAssignableFrom(field.getClass())) {
@@ -260,6 +260,30 @@ public class DynamicClassModifier {
         for(String fieldName: stateFields.keySet())
         {
             System.out.println("Instrument field "+fieldName);
+        }
+    }
+
+    private CtClass resolveCtClass(ClassPool pool, String className) throws NotFoundException {
+        try {
+            return pool.get(className);
+        } catch (NotFoundException e) {
+            // Fallback: some classes may be inner classes where Javassist expects $ separators
+            // Try progressively replacing the right-most '.' with '$', then continue leftwards
+            String temp = className;
+            while (true) {
+                int idx = temp.lastIndexOf('.');
+                if (idx == -1) {
+                    break;
+                }
+
+                temp = temp.substring(0, idx) + '$' + temp.substring(idx + 1);
+                try {
+                    return pool.get(temp);
+                } catch (NotFoundException ignored) {
+                    // continue replacing further left
+                }
+            }
+            throw e;
         }
     }
 
@@ -513,7 +537,7 @@ public class DynamicClassModifier {
                 //e.g. org.apache.hadoop.hbase.regionserver.MemStore@heapSizeChange -> org.apache.hadoop.hbase.regionserver.MemStore
                 String cNameNoMethod = cName.split("\\@")[0];
                 String methodName = cName.split("\\@").length>1?cName.split("\\@")[1]:null;
-                CtClass cc = pool.get(cNameNoMethod);
+                CtClass cc = resolveCtClass(pool, cNameNoMethod);
                 for (CtMethod m : cc.getDeclaredMethods()) {
                     if (allowedSet != null && !allowedSet.contains(m.getLongName()))
                         continue;
@@ -585,7 +609,7 @@ public class DynamicClassModifier {
                     //we don't want to inject in test class and result a lot of traces we are not interested!
                     continue;
 
-                CtClass cc = pool.get(cName);
+                CtClass cc = resolveCtClass(pool, cName);
                 cc.defrost();
 
                 //important, we found that if a method contains several inject points, it's very likely to cause problems like
@@ -768,7 +792,7 @@ public class DynamicClassModifier {
         int errCounters = 0;
         {
             try {
-                CtClass cc = pool.get(testName);
+                CtClass cc = resolveCtClass(pool, testName);
                 cc.defrost();
 
                 for(CtMethod m: cc.getMethods()){

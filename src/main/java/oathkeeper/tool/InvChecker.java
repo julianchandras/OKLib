@@ -110,6 +110,29 @@ public class InvChecker {
             List<Integer> failedInvs = new ArrayList<>();
             runtimeChecker.runThroughTraces(tracer,passInvs,inactiveInvs,failedInvs,true);
             runtimeChecker.output(traceFile, outputPath, true, passInvs,inactiveInvs,failedInvs);
+
+            // Also dump human-readable per-category files similar to detect's _detected output.
+            try {
+                FileWriter passWriter = new FileWriter(outputPath + "_pass", true);
+                for (Integer i : passInvs) {
+                    passWriter.write(String.valueOf(i) + " " + runtimeChecker.store.invariantList.get(i).toString() + "\n");
+                }
+                passWriter.close();
+
+                FileWriter inacWriter = new FileWriter(outputPath + "_inac", true);
+                for (Integer i : inactiveInvs) {
+                    inacWriter.write(String.valueOf(i) + " " + runtimeChecker.store.invariantList.get(i).toString() + "\n");
+                }
+                inacWriter.close();
+
+                FileWriter failWriter = new FileWriter(outputPath + "_fail", true);
+                for (Integer i : failedInvs) {
+                    failWriter.write(String.valueOf(i) + " " + runtimeChecker.store.invariantList.get(i).toString() + "\n");
+                }
+                failWriter.close();
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
         }
     }
 

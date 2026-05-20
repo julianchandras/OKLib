@@ -4,6 +4,7 @@
 #constants
 # Can be overridden via env (OK_SINGLE_COMMAND_TIMEOUT_THRESHOLD) and then by conf file.
 single_command_timeout_threshold=${OK_SINGLE_COMMAND_TIMEOUT_THRESHOLD:-4h}
+single_command_heap_size=${OK_SINGLE_COMMAND_HEAP_SIZE:-8g}
 
 ok_dir=$(cd "$(dirname "${BASH_SOURCE-$0}")"; pwd)
 
@@ -63,6 +64,7 @@ usage (){
   echo "\tusage: ./run_engine.sh eval_completeness conf_file_path input_dir_path"
   echo "\tusage: ./run_engine.sh compare conf_file_path inv_file_1 inv_file_2"
   echo "\tusage: ./run_engine.sh compareall conf_file_path inv_folder inv_file_format"
+  echo "\tusage: ./run_engine.sh compare_pass_not_detected pass_file detected_file output_file_name"
   echo "\tusage: ./run_engine.sh check_trace conf_file_path verify/detect inv_file trace_file1;trace_file2;.. output_file_name"
   echo "\tusage: ./run_engine.sh crosscheck conf_file_path ticket_file_1 ticket_file_2 inv_dir traces_dir"
   echo "\tusage: ./run_engine.sh crosscheckall conf_file_path ticket_dir_for_inv ticket_dir_for_traces inv_dir traces_dir"
@@ -78,14 +80,14 @@ gentrace_test () {
     echo "full_class_path: ${full_class_path}"
     echo "gentrace_test:"
     echo "java -cp ${full_class_path} \
-     -Xmx8g \
+     -Xmx${single_command_heap_size} \
      -Dok.testname=${test_name} -Dok.invmode=dump -Dok.patchstate=${patchstate} \
      -Dok.conf=${conf_file_realpath} -Dok.filediff="${diff_file_list}" -Dlog4j.configuration=${log4j_conf} \
       -Dok.ok_root_abs_path=${ok_dir} -Dok.target_system_abs_path=${system_dir_path} \
       -Dok.test_trace_prefix=${test_trace_prefix} \
       -Dok.ticket_id=${ticket_id} oathkeeper.engine.tester.TestEngine"
     timeout ${single_command_timeout_threshold} java -cp ${full_class_path} \
-     -Xmx8g \
+     -Xmx${single_command_heap_size} \
      -Dok.testname=${test_name} -Dok.invmode=dump -Dok.patchstate=${patchstate} \
      -Dok.conf=${conf_file_realpath} -Dok.filediff="${diff_file_list}" -Dlog4j.configuration=${log4j_conf} \
       -Dok.ok_root_abs_path=${ok_dir} -Dok.target_system_abs_path=${system_dir_path} \
@@ -255,6 +257,28 @@ compare ()
      oathkeeper.tool.InvComparator ${file1} ${file2}
 }
 
+compare_pass_not_detected ()
+{
+    tmp_detected_only=$(mktemp)
+
+    awk '{
+        $1="";
+        sub(/^ /,"");
+        print
+    }' "${file2}" | sort -u > "${tmp_detected_only}"
+
+    awk 'NR==FNR { seen[$0]; next }
+    {
+        inv_index=$1;
+        $1="";
+        sub(/^ /,"");
+        if (!($0 in seen))
+            print inv_index " " $0
+    }' "${tmp_detected_only}" "${file1}" > "${output_file_name}"
+
+    rm -f "${tmp_detected_only}"
+}
+
 search ()
 {
     java -cp ${full_class_path} \
@@ -401,6 +425,15 @@ then
     exit 0
 fi
 
+if [[ $1 == "compare_pass_not_detected" ]]
+then
+    file1=$2
+    file2=$3
+    output_file_name=$4
+    timing compare_pass_not_detected "compare_pass_not_detected" "${file1} and ${file2}"
+    exit 0
+fi
+
 if [[ $1 == "help" ]]
 then
     usage
@@ -415,7 +448,11 @@ source ${conf_file_path}
 if [[ -z "${single_command_timeout_threshold}" ]]; then
     single_command_timeout_threshold=4h
 fi
+if [[ -z "${single_command_heap_size}" ]]; then
+    single_command_heap_size=8g
+fi
 echo "single_command_timeout_threshold: ${single_command_timeout_threshold}"
+echo "single_command_heap_size: ${single_command_heap_size}"
 
 full_class_path=${test_classes_dir_path}:${java_class_path}:${ok_lib}
 

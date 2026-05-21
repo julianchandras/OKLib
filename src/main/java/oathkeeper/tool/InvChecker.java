@@ -73,6 +73,9 @@ public class InvChecker {
         Path outputFilePath = Paths.get(FileLayoutManager.getPathForInvCheckerOutputDir(),outputFile);
         try {
             Files.delete(outputFilePath);
+            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_pass"));
+            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_inac"));
+            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_fail"));
         }
         catch (NoSuchFileException ex)
         {

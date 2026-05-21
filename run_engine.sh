@@ -64,7 +64,7 @@ usage (){
   echo "\tusage: ./run_engine.sh eval_completeness conf_file_path input_dir_path"
   echo "\tusage: ./run_engine.sh compare conf_file_path inv_file_1 inv_file_2"
   echo "\tusage: ./run_engine.sh compareall conf_file_path inv_folder inv_file_format"
-  echo "\tusage: ./run_engine.sh compare_pass_not_detected pass_file detected_file output_file_name"
+  echo "\tusage: ./run_engine.sh compare_fail_not_detected fail_file detected_file output_file_name"
   echo "\tusage: ./run_engine.sh check_trace conf_file_path verify/detect inv_file trace_file1;trace_file2;.. output_file_name"
   echo "\tusage: ./run_engine.sh crosscheck conf_file_path ticket_file_1 ticket_file_2 inv_dir traces_dir"
   echo "\tusage: ./run_engine.sh crosscheckall conf_file_path ticket_dir_for_inv ticket_dir_for_traces inv_dir traces_dir"
@@ -257,7 +257,7 @@ compare ()
      oathkeeper.tool.InvComparator ${file1} ${file2}
 }
 
-compare_pass_not_detected ()
+compare_fail_not_detected ()
 {
     tmp_detected_only=$(mktemp)
 
@@ -425,12 +425,12 @@ then
     exit 0
 fi
 
-if [[ $1 == "compare_pass_not_detected" ]]
+if [[ $1 == "compare_fail_not_detected" ]]
 then
     file1=$2
     file2=$3
     output_file_name=$4
-    timing compare_pass_not_detected "compare_pass_not_detected" "${file1} and ${file2}"
+    timing compare_fail_not_detected "compare_fail_not_detected" "${file1} and ${file2}"
     exit 0
 fi
 

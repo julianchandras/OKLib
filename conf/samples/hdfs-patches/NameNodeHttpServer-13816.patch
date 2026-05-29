@@ -1,0 +1,35 @@
+diff --git a/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java b/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
+index 1bc43b896ae..f879a354499 100644
+--- a/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
++++ b/hadoop-hdfs-project/hadoop-hdfs/src/main/java/org/apache/hadoop/hdfs/server/namenode/NameNodeHttpServer.java
+@@ -115,7 +115,7 @@ public static void initWebHdfs(Configuration conf, String hostname,
+ 
+     // add webhdfs packages
+     httpServer2.addJerseyResourcePackage(
+-        jerseyResourcePackage + ";" + Param.class.getPackage().getName(),
++        jerseyResourcePackage + ";" + "org.apache.hadoop.hdfs.web.resources",
+         pathSpec);
+   }
+ 
+@@ -172,7 +172,7 @@ void start() throws IOException {
+     String httpKeytab = conf.get(DFSUtil.getSpnegoKeytabKey(conf,
+         DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY));
+     initWebHdfs(conf, bindAddress.getHostName(), httpKeytab, httpServer,
+-        NamenodeWebHdfsMethods.class.getPackage().getName());
++        "org.apache.hadoop.hdfs.server.namenode.web.resources");
+ 
+     httpServer.setAttribute(NAMENODE_ATTRIBUTE_KEY, nn);
+     httpServer.setAttribute(JspHelper.CURRENT_CONF, conf);
+diff --git a/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/TestQuota.java b/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/TestQuota.java
+index 1c4855fc701..ad17ac11bf0 100644
+--- a/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/TestQuota.java
++++ b/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/TestQuota.java
+@@ -338,7 +338,7 @@ public void testQuotaCommands() throws Exception {
+       fail("Expected FileNotFoundException");
+     } catch (FileNotFoundException fnfe) {
+       GenericTestUtils.assertExceptionContains(
+-          "File/Directory does not exist: " + nonExistentPath, fnfe);
++          "File/Directory does not exist: " + dfs.makeQualified(nonExistentPath).toUri().getPath(), fnfe);
+     }
+     args = new String[]{"-setQuota", "1", nonExistentPath.toString()};
+     runCommand(admin, args, true);

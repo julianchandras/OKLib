@@ -315,7 +315,7 @@ public class DynamicClassModifier {
             excludeSpecifiedClasses();
             // Commented out to not include all fields,
             // and only include the ones specified manually instead
-            appendTrackedStates();
+            //appendTrackedStates();
             //dumpInstrumentPoints();
         }
         else if(ConfigManager.getGentraceInstrumentMode().equals(ConfigManager.InstrumentMode.SPECIFIED_SELECTIVE)) {

@@ -312,14 +312,17 @@ checkout ()
     clean_state
     cd ${ok_dir} || return
 
+    ticket_file_realpath=$(realpath ${ticket_file_path})
+
     #clean saved value by reloading the default setting,
     source ${conf_file_path}
 
-    source ${ticket_file_path}
+    source ${ticket_file_realpath}
     cd ${system_dir_path} || return
     git checkout -f ${commit_id}
     diff_file_list=$(git diff-tree --no-commit-id --name-only -r ${commit_id})
     eval ${compile_test_cmd}
+    source ${ticket_file_realpath}
 }
 
 checkout_light ()
@@ -327,10 +330,12 @@ checkout_light ()
     clean_state
     cd ${ok_dir} || return
 
+    ticket_file_realpath=$(realpath ${ticket_file_path})
+
     #clean saved value by reloading the default setting,
     source ${conf_file_path}
 
-    source ${ticket_file_path}
+    source ${ticket_file_realpath}
     cd ${system_dir_path} || return
     git checkout -f ${commit_id}
 }

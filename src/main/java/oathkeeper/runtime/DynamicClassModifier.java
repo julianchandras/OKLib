@@ -142,6 +142,10 @@ public class DynamicClassModifier {
             }
             stateFields.put(fieldName, valMethodName);
         }
+    }
+
+    private void appendFromConfigFile()
+    {
         opInstClasses.addAll(Arrays.asList(ConfigManager.config.getStringArray(ConfigManager.INSTRUMENT_CLASS_ALLMETHODS_KEY)));
     }
 
@@ -299,6 +303,7 @@ public class DynamicClassModifier {
         {
             initFromAllClasses();
             excludeSpecifiedClasses();
+            appendFromConfigFile();
             appendTrackedStates();
             //dumpInstrumentPoints();
         }
@@ -306,6 +311,7 @@ public class DynamicClassModifier {
             initFromConfigFile();
             initFromDiffFileFromCommit(false);
             excludeSpecifiedClasses();
+            appendFromConfigFile();
             appendTrackedStates();
             //dumpInstrumentPoints();
         }
@@ -313,14 +319,16 @@ public class DynamicClassModifier {
             initFromConfigFile();
             initFromDiffFileFromCommit(true);
             excludeSpecifiedClasses();
+            appendFromConfigFile();
             // Commented out to not include all fields,
             // and only include the ones specified manually instead
-            appendTrackedStates();
+            //appendTrackedStates();
             //dumpInstrumentPoints();
         }
         else if(ConfigManager.getGentraceInstrumentMode().equals(ConfigManager.InstrumentMode.SPECIFIED_SELECTIVE)) {
             initFromDumpedFiles();
             excludeSpecifiedClasses();
+            appendFromConfigFile();
             appendTrackedStates();
         }
         else {

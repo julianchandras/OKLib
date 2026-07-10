@@ -400,6 +400,20 @@ public class DynamicClassModifier {
         return null;
     }
 
+    private static Field findFieldInHierarchy(Object ownerObject, String fieldName) {
+        Class<?> current = ownerObject.getClass();
+        while (current != null) {
+            try {
+                Field f = current.getDeclaredField(fieldName);
+                f.setAccessible(true);
+                return f;
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
     private static Object applyAccessorChain(Object value, String valMethodSuffix) throws Throwable {
         if (value == null || valMethodSuffix == null || valMethodSuffix.trim().isEmpty()) {
             return value;
@@ -432,16 +446,23 @@ public class DynamicClassModifier {
             }
             String methodName = expr.substring(start, cursor);
 
-            if (cursor + 1 >= expr.length() || expr.charAt(cursor) != '(' || expr.charAt(cursor + 1) != ')') {
-                break;
-            }
-            cursor += 2;
+            boolean isMethodCall = cursor + 1 < expr.length() && expr.charAt(cursor) == '(' && expr.charAt(cursor + 1) == ')';
+            if (isMethodCall) {
+                cursor += 2;
 
-            Method method = findZeroArgMethodInHierarchy(current.getClass(), methodName);
-            if (method == null) {
+                Method method = findZeroArgMethodInHierarchy(current.getClass(), methodName);
+                if (method == null) {
+                    return null;
+                }
+                current = method.invoke(current);
+                continue;
+            }
+
+            Field field = findFieldInHierarchy(current, methodName);
+            if (field == null) {
                 return null;
             }
-            current = method.invoke(current);
+            current = field.get(current);
         }
         return current;
     }

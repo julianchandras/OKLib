@@ -88,11 +88,18 @@ public class EventTracer implements Iterable<SemanticEvent> {
             //eventQueue will not be used in the production as we only do check there
             if(!running_under_prod_mode)
             {
-                //need to allocate new event in offline mode
-                eventQueue.add(event.clone());
+                //Offline: registerOp/StateEvent reuses one event object, overwriting its fields each
+                //call, so clone before storing -- else eventMap aliases the mutating original and every
+                //stored event reads back the last-fired value, making verify see all invariants INACTIVE.
+                SemanticEvent snapshot = event.clone();
+                eventQueue.add(snapshot);
+                enqueueMap(snapshot);
             }
-
-            enqueueMap(event);
+            else
+            {
+                //Prod: CircularBuffer.add copies fields, no clone needed.
+                enqueueMap(event);
+            }
             queueSize++;
 
             //dequeueForExpiredEvent(event);

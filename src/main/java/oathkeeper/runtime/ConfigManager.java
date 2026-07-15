@@ -31,6 +31,11 @@ public class ConfigManager {
     public static String SYSTEM_PACKAGE_PREFIX_KEY = "system_package_prefix";
     public static String TEST_CLASS_NAME_REGEX_KEY = "test_class_name_regex";
     public static String SPECIFIED_TEST_CLASS_LIST_KEY = "specified_test_class_list";
+    //verify test discovery: "subtypes" (default, getSubTypesOf(Object)) or "store" (read SubTypesScanner
+    //store directly -- finds tests whose superclass chain leaves the prefix, e.g. Solr's LuceneTestCase-based).
+    public static String TEST_DISCOVERY_MODE_KEY = "test_discovery_mode";
+    //extra JVM args (e.g. -ea) forwarded to verify's per-test child processes; see TestEngine.spawnProcess.
+    public static String EXTRA_JVM_ARGS_KEY = "extra_jvm_args";
     public static String EXCLUDED_TEST_METHOD_LIST_KEY = "excluded_test_method_list";
     public static String OP_INTERFACE_CLASS_LIST_KEY = "op_interface_class_list";
 

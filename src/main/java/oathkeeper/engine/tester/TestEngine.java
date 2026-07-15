@@ -63,22 +63,30 @@ public class TestEngine {
 
         String rootPath = System.getProperty("user.dir");
 
-        ProcessBuilder builder = new ProcessBuilder(
-                javaBin, "-cp", classpath,
-                "-Dok.testname="+klass,
-                "-Dok.invmode="+System.getProperty("ok.invmode"),
-                //set the mode is patched or unpatched
-                "-Dok.patchstate="+System.getProperty("ok.patchstate"),
-                "-Dok.patchid="+System.getProperty("ok.patchid"),
-                "-Dok.conf="+System.getProperty("ok.conf"),
-                "-Dok.filediff="+System.getProperty("ok.filediff"),
-                "-Dok.invfile="+System.getProperty("ok.invfile"),
-                "-Dok.ticket_id="+System.getProperty("ok.ticket_id"), //e.g. ZK-1208, this is specified implicitly by property file name
-                "-Dok.ok_root_abs_path="+System.getProperty("ok.ok_root_abs_path"),
-                "-Dok.target_system_abs_path="+System.getProperty("ok.target_system_abs_path"),
-                "-Dok.test_trace_prefix="+System.getProperty("ok.test_trace_prefix"),
-                "-Dok.verify_test_package="+System.getProperty("ok.verify_test_package"),
-                className);
+        List<String> command = new ArrayList<>();
+        command.add(javaBin);
+        //forward extra JVM args (e.g. -ea, required by LuceneTestCase) to the child. gentrace passes
+        //these via run_engine.sh; verify spawns children here, so it must forward them. Empty = no change.
+        String extraJvmArgs = ConfigManager.config.getString(ConfigManager.EXTRA_JVM_ARGS_KEY, "").trim();
+        if(!extraJvmArgs.isEmpty())
+            for(String arg : extraJvmArgs.split("\\s+"))
+                command.add(arg);
+        command.add("-cp"); command.add(classpath);
+        command.add("-Dok.testname="+klass);
+        command.add("-Dok.invmode="+System.getProperty("ok.invmode"));
+        //set the mode is patched or unpatched
+        command.add("-Dok.patchstate="+System.getProperty("ok.patchstate"));
+        command.add("-Dok.patchid="+System.getProperty("ok.patchid"));
+        command.add("-Dok.conf="+System.getProperty("ok.conf"));
+        command.add("-Dok.filediff="+System.getProperty("ok.filediff"));
+        command.add("-Dok.invfile="+System.getProperty("ok.invfile"));
+        command.add("-Dok.ticket_id="+System.getProperty("ok.ticket_id")); //e.g. ZK-1208, this is specified implicitly by property file name
+        command.add("-Dok.ok_root_abs_path="+System.getProperty("ok.ok_root_abs_path"));
+        command.add("-Dok.target_system_abs_path="+System.getProperty("ok.target_system_abs_path"));
+        command.add("-Dok.test_trace_prefix="+System.getProperty("ok.test_trace_prefix"));
+        command.add("-Dok.verify_test_package="+System.getProperty("ok.verify_test_package"));
+        command.add(className);
+        ProcessBuilder builder = new ProcessBuilder(command);
 
         Process process = builder.inheritIO().start();
         //set the timeout threshold to be

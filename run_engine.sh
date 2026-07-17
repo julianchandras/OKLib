@@ -188,8 +188,10 @@ verify ()
     checkout
     cd ${system_dir_path} || return
 
-    #recalculate once in case this case customize
-    full_class_path=${test_classes_dir_path}:${java_class_path}:${ok_lib}
+    #recalculate once in case this case customize.
+    #ok_lib FIRST (like gentrace): its fat-jar bundles junit 4.12+ that TestListener needs;
+    #Solr/Lucene ship junit-4.10, so ok_lib-last -> NoSuchMethodError -> 0 verified invs.
+    full_class_path=${ok_lib}:${test_classes_dir_path}:${java_class_path}
 
     echo "java -Xmx${single_command_heap_size} -cp ${full_class_path} -Dok.invmode=${invmode} -Dok.invfile=${test_name} -Dok.patchstate=patched \
      -Dok.conf=${conf_file_realpath} -Dlog4j.configuration=${log4j_conf} \

@@ -28,36 +28,51 @@ public class TestClassPool {
         System.out.println("Start to analyze all test classes with prefix: "+ prefix);
         Reflections reflections = new Reflections(prefix, new SubTypesScanner(false));
 
-        Set<Class<? extends Object>> allClasses =
-                reflections.getSubTypesOf(Object.class);
-        for(Class clazz:allClasses)
+        //Candidate test classes. Default "subtypes": getSubTypesOf(Object), which drops classes whose
+        //superclass chain leaves the scanned prefix (Solr: *Test -> SolrTestCaseJ4 -> LuceneTestCase ->
+        //carrotsearch...). "store" reads the SubTypesScanner store directly, so no path to Object is needed.
+        Set<String> allClasses = new HashSet<>();
+        String discoveryMode = ConfigManager.config.getString(ConfigManager.TEST_DISCOVERY_MODE_KEY, "subtypes");
+        if("store".equalsIgnoreCase(discoveryMode))
+        {
+            for(Set<String> subs : reflections.getStore().get("SubTypesScanner").values())
+                allClasses.addAll(subs);
+        }
+        else
+        {
+            for(Class clazz : reflections.getSubTypesOf(Object.class))
+                allClasses.add(clazz.getName());
+        }
+
+        for(String clazzName:allClasses)
         {
             //skip subclass
-            if(clazz.getName().contains("$"))
+            if(clazzName.contains("$"))
                 continue;
 
-            if(!clazz.getSimpleName().matches(regex))
+            String simpleName = clazzName.substring(clazzName.lastIndexOf('.')+1);
+            if(!simpleName.matches(regex))
                 continue;
 
             if (System.getProperty("ok.verify_test_package") != null &&
                     !System.getProperty("ok.verify_test_package").isEmpty())
             {
                 String packageName = null;
-                int iend = clazz.getName().lastIndexOf(".");
+                int iend = clazzName.lastIndexOf(".");
                 if (iend != -1)
                 {
-                    packageName= clazz.getName().substring(0 , iend);
+                    packageName= clazzName.substring(0 , iend);
                     if (!packageName.equals(System.getProperty("ok.verify_test_package")))
                         continue;
                 }
             }
 
             if(specifiedClassList.length>0)
-                if(!Arrays.asList(specifiedClassList).contains(clazz.getName()))
+                if(!Arrays.asList(specifiedClassList).contains(clazzName))
                     continue;
 
-            System.out.println("registering for test class "+clazz.getName());
-            register(clazz.getName());
+            System.out.println("registering for test class "+clazzName);
+            register(clazzName);
 
             if(ConfigManager.config.getBoolean(ConfigManager.VERIFY_ABORT_AFTER_THREE_TEST_KEY))
             {

@@ -6,7 +6,6 @@ import oathkeeper.runtime.invariant.Invariant;
 import java.io.*;
 import java.nio.Buffer;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -71,18 +70,22 @@ public class InvChecker {
         if (!dir.exists()) dir.mkdirs();
 
         Path outputFilePath = Paths.get(FileLayoutManager.getPathForInvCheckerOutputDir(),outputFile);
+
         try {
-            Files.delete(outputFilePath);
-            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_pass"));
-            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_inac"));
-            Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_fail"));
+            if(verifyOrDetectMode) {
+                Files.deleteIfExists(outputFilePath);
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_pass"));
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_inac"));
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_fail"));
+            }
+            else {
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_detected"));
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_undetected"));
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_p"));
+                Files.deleteIfExists(Paths.get(outputFilePath.toString() + "_up"));
+            }
         }
-        catch (NoSuchFileException ex)
-        {
-            System.out.println("Output file not found, no need to delete");
-        }
-        catch (IOException ex)
-        {
+        catch (IOException ex) {
             ex.printStackTrace();
         }
 

@@ -34,6 +34,7 @@ public class ConfigManager {
     //verify test discovery: "subtypes" (default, getSubTypesOf(Object)) or "store" (read SubTypesScanner
     //store directly -- finds tests whose superclass chain leaves the prefix, e.g. Solr's LuceneTestCase-based).
     public static String TEST_DISCOVERY_MODE_KEY = "test_discovery_mode";
+    public static String TEST_DISCOVERY_BASE_CLASS_KEY = "test_discovery_base_class";
     //extra JVM args (e.g. -ea) forwarded to verify's per-test child processes; see TestEngine.spawnProcess.
     public static String EXTRA_JVM_ARGS_KEY = "extra_jvm_args";
     public static String EXCLUDED_TEST_METHOD_LIST_KEY = "excluded_test_method_list";

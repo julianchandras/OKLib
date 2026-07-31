@@ -65,12 +65,13 @@ public class TestEngine {
 
         List<String> command = new ArrayList<>();
         command.add(javaBin);
-        //forward extra JVM args (e.g. -ea, required by LuceneTestCase) to the child. gentrace passes
-        //these via run_engine.sh; verify spawns children here, so it must forward them. Empty = no change.
-        String extraJvmArgs = ConfigManager.config.getString(ConfigManager.EXTRA_JVM_ARGS_KEY, "").trim();
-        if(!extraJvmArgs.isEmpty())
-            for(String arg : extraJvmArgs.split("\\s+"))
-                command.add(arg);
+        //Pass extra JVM args like -ea (which Solr's LuceneTestCase needs) down to the child.
+        //verify spawns these children itself, so it can't rely on run_engine.sh to add them the way gentrace does.
+        //We keep the value comma-separated in the .properties so it needs no quoting when bash sources the file,
+        //and Commons Configuration hands it back already split for us.
+        for(String arg : ConfigManager.config.getStringArray(ConfigManager.EXTRA_JVM_ARGS_KEY))
+            if(!arg.trim().isEmpty())
+                command.add(arg.trim());
         command.add("-cp"); command.add(classpath);
         command.add("-Dok.testname="+klass);
         command.add("-Dok.invmode="+System.getProperty("ok.invmode"));

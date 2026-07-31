@@ -28,12 +28,15 @@ public class TestClassPool {
         System.out.println("Start to analyze all test classes with prefix: "+ prefix);
         Reflections reflections = new Reflections(prefix, new SubTypesScanner(false));
 
-        //Candidate test classes. Default "subtypes": getSubTypesOf(Object), which drops classes whose
-        //superclass chain leaves the scanned prefix (Solr: *Test -> SolrTestCaseJ4 -> LuceneTestCase ->
-        //carrotsearch...). "store" reads the SubTypesScanner store directly, so no path to Object is needed.
         Set<String> allClasses = new HashSet<>();
+        String baseClass = ConfigManager.config.getString(ConfigManager.TEST_DISCOVERY_BASE_CLASS_KEY, "");
         String discoveryMode = ConfigManager.config.getString(ConfigManager.TEST_DISCOVERY_MODE_KEY, "subtypes");
-        if("store".equalsIgnoreCase(discoveryMode))
+        if(!baseClass.isEmpty())
+        {
+            for(Class<?> clazz : reflections.getSubTypesOf(Class.forName(baseClass)))
+                allClasses.add(clazz.getName());
+        }
+        else if("store".equalsIgnoreCase(discoveryMode))
         {
             for(Set<String> subs : reflections.getStore().get("SubTypesScanner").values())
                 allClasses.addAll(subs);

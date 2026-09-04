@@ -26,3 +26,20 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+# Generated pipeline output
+/trace_output/
+/inv_infer_output/
+/inv_verify_output/
+/inv_checktrace_output/
+/inv_checktrace_prod_output/
+/inv_prod_input/
+/oklib-dependencies/
+/oklogs/
+/backup/
+
+# Scratch
+/matching_invariant*.txt
+/*_summary.txt
+/testconfig.out
+/.vscode/

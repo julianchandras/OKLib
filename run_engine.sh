@@ -87,7 +87,7 @@ gentrace_test () {
       -Dok.test_trace_prefix=${test_trace_prefix} \
       -Dok.ticket_id=${ticket_id} oathkeeper.engine.tester.TestEngine"
     timeout ${single_command_timeout_threshold} java -cp ${full_class_path} \
-     -Xmx${single_command_heap_size} ${extra_jvm_args} \
+     -Xmx${single_command_heap_size} ${extra_jvm_args//,/ } \
      -Dok.testname=${test_name} -Dok.invmode=dump -Dok.patchstate=${patchstate} \
      -Dok.conf=${conf_file_realpath} -Dok.filediff="${diff_file_list}" -Dlog4j.configuration=${log4j_conf} \
       -Dok.ok_root_abs_path=${ok_dir} -Dok.target_system_abs_path=${system_dir_path} \
@@ -198,7 +198,7 @@ verify ()
       -Dok.ok_root_abs_path=${ok_dir} -Dok.target_system_abs_path=${system_dir_path} \
       -Dok.ticket_id=${ticket_id} -Dok.verify_test_package=${verify_test_package} \
       oathkeeper.engine.tester.TestEngine"
-    timeout ${single_command_timeout_threshold} java -Xmx${single_command_heap_size} ${extra_jvm_args} -cp ${full_class_path} -Dok.invmode=${invmode} -Dok.invfile=${test_name} -Dok.patchstate=patched \
+    timeout ${single_command_timeout_threshold} java -Xmx${single_command_heap_size} ${extra_jvm_args//,/ } -cp ${full_class_path} -Dok.invmode=${invmode} -Dok.invfile=${test_name} -Dok.patchstate=patched \
      -Dok.conf=${conf_file_realpath} -Dlog4j.configuration=${log4j_conf} \
       -Dok.ok_root_abs_path=${ok_dir} -Dok.target_system_abs_path=${system_dir_path} \
       -Dok.ticket_id=${ticket_id} -Dok.verify_test_package=${verify_test_package} \

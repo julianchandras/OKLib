@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+
+  <!-- ==== the precondition the bug needs ==== -->
+  <property>
+    <name>dfs.ha.nn.not-become-active-in-safemode</name>
+    <value>true</value>
+  </property>
+
+  <!-- ==== HA topology: two NameNodes, both on this host ==== -->
+  <property>
+    <name>dfs.nameservices</name>
+    <value>okcluster</value>
+  </property>
+  <property>
+    <name>dfs.ha.namenodes.okcluster</name>
+    <value>nn1,nn2</value>
+  </property>
+  <property>
+    <name>dfs.namenode.rpc-address.okcluster.nn1</name>
+    <value>localhost:8020</value>
+  </property>
+  <property>
+    <name>dfs.namenode.rpc-address.okcluster.nn2</name>
+    <value>localhost:8022</value>
+  </property>
+  <property>
+    <name>dfs.namenode.http-address.okcluster.nn1</name>
+    <value>localhost:9870</value>
+  </property>
+  <property>
+    <name>dfs.namenode.http-address.okcluster.nn2</name>
+    <value>localhost:9872</value>
+  </property>
+  <property>
+    <name>dfs.client.failover.proxy.provider.okcluster</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+  <property>
+    <!-- manual transitions only; no ZKFC, so no ZooKeeper and no extra JVMs -->
+    <name>dfs.ha.automatic-failover.enabled</name>
+    <value>false</value>
+  </property>
+
+  <!-- ==== per-NameNode state, kept apart ====
+       dfs.namenode.name.dir is in NameNode.NAMENODE_SPECIFIC_KEYS, so the
+       .okcluster.nnX suffix resolves per namenode. Both NN JVMs read the same
+       hdfs-site.xml; without these suffixes they would format and mutate the
+       same directory. -->
+  <property>
+    <name>dfs.namenode.name.dir.okcluster.nn1</name>
+    <value>file:///localtmp/julian/hdfs-16547-data/nn1</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir.okcluster.nn2</name>
+    <value>file:///localtmp/julian/hdfs-16547-data/nn2</value>
+  </property>
+  <property>
+    <!-- deliberately unsuffixed: this one IS meant to be shared -->
+    <name>dfs.namenode.shared.edits.dir</name>
+    <value>file:///localtmp/julian/hdfs-16547-data/shared-edits</value>
+  </property>
+
+  <!-- ==== no datanodes needed ====
+       TestDFSHAAdminMiniCluster builds with numDataNodes(0); the bug is a pure
+       state-transition check and never touches a block. -->
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+</configuration>

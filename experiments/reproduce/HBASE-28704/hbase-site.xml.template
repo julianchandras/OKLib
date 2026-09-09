@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <!-- Standalone: HMaster, RegionServer and ZooKeeper in one JVM, rootdir on the
+       local filesystem. HBASE-28704 lives in snapshot file handling, which is
+       filesystem work; it needs no HDFS and no second node. -->
+  <property><name>hbase.rootdir</name><value>file://ROOTDIR</value></property>
+  <property><name>hbase.cluster.distributed</name><value>false</value></property>
+  <property><name>hbase.tmp.dir</name><value>TMPDIR</value></property>
+  <property><name>hbase.zookeeper.property.dataDir</name><value>ZKDIR</value></property>
+  <property><name>hbase.zookeeper.property.clientPort</name><value>ZKPORT</value></property>
+  <property><name>hbase.master.port</name><value>MASTERPORT</value></property>
+  <property><name>hbase.regionserver.port</name><value>RSPORT</value></property>
+
+  <!-- LocalFileSystem does not implement hflush/hsync, so the WAL provider refuses to
+       start unless the capability check is switched off. Standard for a local-FS
+       standalone cluster, and irrelevant to the bug. -->
+  <property><name>hbase.unsafe.stream.capability.enforce</name><value>false</value></property>
+
+  <!-- No web UIs. Two of these clusters may run back to back and the info ports are
+       the usual source of a bind clash. -->
+  <property><name>hbase.master.info.port</name><value>-1</value></property>
+  <property><name>hbase.regionserver.info.port</name><value>-1</value></property>
+
+  <!-- THE ONE TUNING THAT MATTERS. SnapshotCleanerChore deletes TTL-expired snapshots.
+       At the 30 min default it would not fire inside a run, but a day makes it
+       impossible. The bug is that an expired snapshot is still READABLE, so the
+       snapshot has to survive its own expiry for the probe to have anything to read. -->
+  <property><name>hbase.master.cleaner.snapshot.interval</name><value>86400000</value></property>
+</configuration>

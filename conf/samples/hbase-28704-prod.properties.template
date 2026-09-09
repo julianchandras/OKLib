@@ -1,0 +1,35 @@
+#Production-mode config for the live HBASE-28704 run. Generated per side by
+#trigger_HBASE-28704.sh (SYS_DIR_MACRO -> the buggy or fixed worktree).
+#
+#Instrumentation mirrors conf/samples/hbase-27671.properties -- same
+#gentrace_instrument_mode and a SUPERSET of its class list -- because the invariants
+#being loaded were inferred and verified under that config. Op names have to match for
+#anything to activate; a different mode would silently rename or drop them.
+#Added over 27671: the classes the HBASE-28704 read path actually runs through
+#(RestoreSnapshotHelper, SnapshotDescriptionUtils, SnapshotManifest, HFileLink,
+#CommonFSUtils, TaskMonitor, SnapshotManager), which are also the classes that appear
+#in the offline check_trace detections.
+system_dir_path=SYS_DIR_MACRO
+ticket_collection_path=${ok_dir}/conf/samples/hb-collections
+
+time_window_length_in_millis=5000
+gentrace_instrument_mode=relaxed-selective
+verify_survivor_mode=false
+
+system_package_prefix=org.apache.hadoop.hbase.
+test_class_name_regex=Test.*
+test_classes_dir_path="${system_dir_path}/hbase-server/target/test-classes/"
+java_class_path="$(cat SYS_DIR_MACRO/hbase-build-configuration/target/cached_classpath.txt 2>/dev/null)"
+
+verify_abort_after_three_test=false
+force_instrument_nothing=false
+force_track_no_states=false
+force_disable_prod_checking=false
+force_disable_enqueue_events=false
+dump_suppress_inv_list_when_checking=false
+
+instrument_state_fields=
+instrument_class_allmethods=org.apache.hadoop.hbase.master.cleaner.SnapshotCleanerChore,org.apache.hadoop.hbase.master.procedure.CloneSnapshotProcedure,org.apache.hadoop.hbase.master.procedure.RestoreSnapshotProcedure,org.apache.hadoop.hbase.client.SnapshotDescription,org.apache.hadoop.hbase.snapshot.SnapshotTTLExpiredException,org.apache.hadoop.hbase.snapshot.RestoreSnapshotHelper,org.apache.hadoop.hbase.snapshot.SnapshotDescriptionUtils,org.apache.hadoop.hbase.snapshot.SnapshotManifest,org.apache.hadoop.hbase.snapshot.SnapshotReferenceUtil,org.apache.hadoop.hbase.master.snapshot.SnapshotManager,org.apache.hadoop.hbase.io.HFileLink,org.apache.hadoop.hbase.util.CommonFSUtils,org.apache.hadoop.hbase.monitoring.TaskMonitor,org.apache.hadoop.hbase.client.TableSnapshotScanner
+exclude_class_list=org.apache.hadoop.hbase.regionserver.wal.HLogFactory,org.apache.hadoop.hbase.regionserver.wal.FSHLog,org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster,org.apache.hadoop.hbase.ChoreService,org.apache.hadoop.hbase.StartMiniClusterOption,org.apache.hadoop.hbase.HBaseTestingUtility,org.apache.hadoop.hbase.StartMiniClusterOption$Builder,org.apache.hadoop.hbase.HTableDescriptor,org.apache.hadoop.hbase.wal.DefaultWALProvider,org.apache.hadoop.hbase.regionserver.KeyValueSkipListSet,org.apache.hadoop.hbase.regionserver.DefaultMemStore,org.apache.hadoop.hbase.regionserver.ScanWildcardColumnTracker,org.apache.hadoop.hbase.regionserver.StoreFileScanner,org.apache.hadoop.hbase.regionserver.HStore,org.apache.hadoop.hbase.regionserver.KeyValueHeap
+single_command_heap_size=8g
+single_command_timeout_threshold=8h

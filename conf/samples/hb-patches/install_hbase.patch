@@ -1,0 +1,34 @@
+diff --git a/bin/hbase b/bin/hbase
+index 4863d79636..8ede1d3bb4 100755
+--- a/bin/hbase
++++ b/bin/hbase
+@@ -839,7 +839,18 @@ for f in ${HBASE_HOME}/lib/client-facing-thirdparty/log4j*.jar; do
+ done
+ 
+ # Exec unless HBASE_NOEXEC is set.
++CLASSPATH="OK_DIR_MACRO/target/*:$CLASSPATH"
+ export CLASSPATH
++# OKFLAGS goes *after* $HBASE_OPTS on the command line: the JVM takes the last
++# duplicate -D, so nothing a caller put in HBASE_OPTS can win over these.
++# ok_root_abs_path is per-JVM, not the OKLib checkout -- JVMs that share it also
++# share inv_prod_input, oklogs and ok.prod.log, which truncated the HDFS-16547 log.
++# Every JVM launched through bin/hbase shares this file, so the ok root has to be
++# overridable per invocation: the HMaster daemon and the ExportSnapshot / CopyTable
++# tool JVMs are all launched this way and must not share inv_prod_input, oklogs or
++# ok.prod.log. OKFLAGS still comes after $HBASE_OPTS so a caller cannot win on the
++# other -Dok.* values; only this one is deliberately caller-settable.
++OKFLAGS="-Dok.invmode=prod -Dok.conf=CONF_PATH_MACRO -Dok.ok_root_abs_path=${OK_ROOT_OVERRIDE:-OK_ROOT_MACRO} -Dok.target_system_abs_path=SYS_DIR_MACRO"
+ if [ "${DEBUG}" = "true" ]; then
+   echo "classpath=${CLASSPATH}" >&2
+   HBASE_OPTS="${HBASE_OPTS} -Xdiag"
+@@ -853,8 +859,8 @@ if [ "${#JSHELL_ARGS[@]}" -gt 0 ] ; then
+ fi
+ 
+ if [ "${HBASE_NOEXEC}" != "" ]; then
+-  "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $HBASE_OPTS $CLASS "${CMD_ARGS[@]}"
++  "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $HBASE_OPTS ${OKFLAGS} oathkeeper.engine.MainWrapper $CLASS "${CMD_ARGS[@]}"
+ else
+   export JVM_PID="$$"
+-  exec "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $HBASE_OPTS $CLASS "${CMD_ARGS[@]}"
++  exec "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $HBASE_OPTS ${OKFLAGS} oathkeeper.engine.MainWrapper $CLASS "${CMD_ARGS[@]}"
+ fi

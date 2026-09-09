@@ -1,0 +1,24 @@
+# 3-node ZooKeeper ensemble, all on one host (pseudo-distributed).
+# MYID / DATADIR / CLIENTPORT are substituted per server by trigger_ZK-3531.sh.
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=DATADIR
+clientPort=CLIENTPORT
+
+# Roll snapshots often, so a follower that misses a burst of writes falls outside
+# the leader's in-memory committed-log window and must be sent a full SNAP --
+# the code path that serializes the ACL cache straight onto the learner socket
+# (LearnerHandler:580 -> serializeSnapshot -> DataTree.serialize -> serializeAcls).
+# NOTE: the window size itself is zookeeper.commitLogCount, a *system property*
+# (ZKDatabase:88) floored at 500 (ZKDatabase:132), so it cannot be set here and
+# cannot be lowered -- the trigger simply writes more than 500 txns instead.
+snapCount=1000
+
+# 4lw for scripted health checks (srvr/mntr/stat)
+4lw.commands.whitelist=*
+admin.enableServer=false
+
+server.1=127.0.0.1:2888:3888
+server.2=127.0.0.1:2889:3889
+server.3=127.0.0.1:2890:3890

@@ -32,7 +32,6 @@ hs_err_pid*
 /inv_infer_output/
 /inv_verify_output/
 /inv_checktrace_output/
-/inv_checktrace_prod_output/
 /inv_prod_input/
 /oklib-dependencies/
 /oklogs/
@@ -43,3 +42,7 @@ hs_err_pid*
 /*_summary.txt
 /testconfig.out
 /.vscode/
+/inv_manual_scope/
+/inv_verify_archive/
+__pycache__/
+*.py[cod]

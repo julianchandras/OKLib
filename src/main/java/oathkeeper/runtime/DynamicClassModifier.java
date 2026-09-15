@@ -18,6 +18,7 @@ import org.reflections8.Reflections;
 import org.reflections8.scanners.MemberUsageScanner;
 import org.reflections8.scanners.SubTypesScanner;
 import org.reflections8.util.ConfigurationBuilder;
+import org.reflections8.util.Utils;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -99,7 +100,7 @@ public class DynamicClassModifier {
             if(prefix==null)
                 continue;
 
-            Set<String> allClasses  = scanTypes(prefix).getAllTypes();
+            Set<String> allClasses = classesInPackage(prefix);
             for(String clazz2:allClasses)
             {
                 opInstClasses.add(clazz2);
@@ -151,15 +152,22 @@ public class DynamicClassModifier {
     private void initFromAllClasses()
     {
         String prefix = ConfigManager.config.getString(ConfigManager.SYSTEM_PACKAGE_PREFIX_KEY);
-        opInstClasses.addAll(scanTypes(prefix).getAllTypes());
+        opInstClasses.addAll(classesInPackage(prefix));
     }
 
-    // Scans a package's class files for class names. Reflections' "expand super types" option (on by default)
-    // makes it load, into the JVM, parent classes that live outside the scanned package (e.g. ZooKeeperServer
-    // while scanning server.quorum). A class loaded that early keeps its original bytecode and OKLib's
-    // instrumented version is later rejected, so the option is turned off.
-    private static Reflections scanTypes(String prefix) {
-        return new Reflections(ConfigurationBuilder.build(prefix, new SubTypesScanner(false)).setExpandSuperTypes(false));
+    // Returns the name of every class file Reflections found in the package, without loading any class into
+    // the JVM. Reflections' "expand super types" option (on by default) loads parent classes that live outside
+    // the scanned package (e.g. ZooKeeperServer while scanning server.quorum), and a class loaded that early
+    // keeps its original bytecode, so it is turned off. getAllTypes() is not used: it only lists classes it can
+    // trace back to java.lang.Object through scanned classes, so it skips e.g. exceptions, enums and classes
+    // whose parent is outside the package.
+    private static Set<String> classesInPackage(String prefix) {
+        Reflections reflections = new Reflections(
+                ConfigurationBuilder.build(prefix, new SubTypesScanner(false)).setExpandSuperTypes(false));
+        String subTypes = Utils.index(SubTypesScanner.class);
+        if (!reflections.getStore().keySet().contains(subTypes))
+            return Collections.emptySet();
+        return reflections.getStore().get(subTypes).flatValuesAsSet();
     }
 
     class OpInstClassesWrapper

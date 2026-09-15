@@ -17,6 +17,7 @@ import oathkeeper.runtime.utils.BashUtil;
 import org.reflections8.Reflections;
 import org.reflections8.scanners.MemberUsageScanner;
 import org.reflections8.scanners.SubTypesScanner;
+import org.reflections8.util.ConfigurationBuilder;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -98,9 +99,7 @@ public class DynamicClassModifier {
             if(prefix==null)
                 continue;
 
-            Reflections reflections = new Reflections(prefix, new SubTypesScanner(false));
-
-            Set<String> allClasses  = reflections.getAllTypes();
+            Set<String> allClasses  = scanTypes(prefix).getAllTypes();
             for(String clazz2:allClasses)
             {
                 opInstClasses.add(clazz2);
@@ -152,9 +151,15 @@ public class DynamicClassModifier {
     private void initFromAllClasses()
     {
         String prefix = ConfigManager.config.getString(ConfigManager.SYSTEM_PACKAGE_PREFIX_KEY);
-        Reflections reflections = new Reflections(prefix, new SubTypesScanner(false));
-        Set<String> allClasses  = reflections.getAllTypes();
-        opInstClasses.addAll(allClasses);
+        opInstClasses.addAll(scanTypes(prefix).getAllTypes());
+    }
+
+    // Scans a package's class files for class names. Reflections' "expand super types" option (on by default)
+    // makes it load, into the JVM, parent classes that live outside the scanned package (e.g. ZooKeeperServer
+    // while scanning server.quorum). A class loaded that early keeps its original bytecode and OKLib's
+    // instrumented version is later rejected, so the option is turned off.
+    private static Reflections scanTypes(String prefix) {
+        return new Reflections(ConfigurationBuilder.build(prefix, new SubTypesScanner(false)).setExpandSuperTypes(false));
     }
 
     class OpInstClassesWrapper
@@ -798,8 +803,10 @@ public class DynamicClassModifier {
     public void writeToClasses() {
         int succDumpCounter = 0;
         int failDumpCounter = 0;
-        for (CtClass ctClass : toDumpClasses.values()) {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        for (CtClass ctClass : parentsFirst()) {
             try {
+                definePackageIfMissing(loader, ctClass.getPackageName());
                 ctClass.toClass();
                 succDumpCounter++;
                 System.out.println("Successfully dump " + ctClass.getName());
@@ -811,6 +818,48 @@ public class DynamicClassModifier {
         }
         System.out.println("Instrument classes finished");
         System.out.println("succDumpCounter" + succDumpCounter + " failDumpCounter" + failDumpCounter);
+    }
+
+    // Defining a class makes the JVM load its superclass and interfaces from disk. If an instrumented parent
+    // is defined after its child, toClass() fails with "duplicate class definition" and the parent silently
+    // stays uninstrumented, so define parents first.
+    private List<CtClass> parentsFirst() {
+        List<CtClass> ordered = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        for (String name : toDumpClasses.keySet())
+            addParentsFirst(name, visited, ordered);
+        return ordered;
+    }
+
+    // toClass() goes through ClassLoader.defineClass(), which unlike a normal load does not define the class's
+    // Package, so X.class.getPackage() is null for an instrumented class whose package nothing else defined
+    // (HDFS NameNodeHttpServer NPEs on NamenodeWebHdfsMethods.class.getPackage().getName()).
+    private static void definePackageIfMissing(ClassLoader loader, String pkg) {
+        if (loader == null || pkg == null || pkg.isEmpty())
+            return;
+        try {
+            Method getPackage = ClassLoader.class.getDeclaredMethod("getPackage", String.class);
+            getPackage.setAccessible(true);
+            if (getPackage.invoke(loader, pkg) != null)
+                return;
+            Method definePackage = ClassLoader.class.getDeclaredMethod("definePackage", String.class, String.class,
+                    String.class, String.class, String.class, String.class, String.class, java.net.URL.class);
+            definePackage.setAccessible(true);
+            definePackage.invoke(loader, pkg, null, null, null, null, null, null, null);
+        } catch (Exception ignored) {
+            // best effort: a missing Package only matters to code that calls getPackage()
+        }
+    }
+
+    private void addParentsFirst(String name, Set<String> visited, List<CtClass> ordered) {
+        CtClass cc = toDumpClasses.get(name);
+        if (cc == null || !visited.add(name))
+            return;
+        javassist.bytecode.ClassFile cf = cc.getClassFile2();
+        addParentsFirst(cf.getSuperclass(), visited, ordered);
+        for (String itf : cf.getInterfaces())
+            addParentsFirst(itf, visited, ordered);
+        ordered.add(cc);
     }
 
     //we want to cut at the end of test methods so our invs wouldn't include some boring events like "shutdown"

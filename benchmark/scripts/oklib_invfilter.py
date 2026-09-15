@@ -209,9 +209,9 @@ def resolve_conf(ticket, override=None):
     guess = CONF_DIR / f"{ticket.lower()}.properties"
     if guess.exists():
         return guess
-    # Not every ticket has its own system config -- ZK-1208 and the rest of the paper's
-    # ZK pool are driven by conf/samples/zk-cc.properties. Guessing would silently give
-    # an empty manual set, so make the caller say which config they mean.
+    # Not every ticket has its own system config -- e.g. ZK-1496 is driven by
+    # conf/samples/zk-1208.properties. Guessing would silently give an empty manual set,
+    # so make the caller say which config they mean.
     candidates = sorted(p.name for p in CONF_DIR.glob(f"{ticket.split('-')[0].lower()}*.properties"))
     raise SystemExit(
         f"no system config for {ticket} at {guess}\n"

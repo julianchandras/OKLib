@@ -8,7 +8,7 @@ result. This filters back down to the chosen ones, so the set is small enough to
 
   benchmark/scripts/filter_manual_scope.py HDFS-13924
   benchmark/scripts/filter_manual_scope.py HDFS-13924 --strict
-  benchmark/scripts/filter_manual_scope.py ZK-1208 --conf conf/samples/zk-cc.properties
+  benchmark/scripts/filter_manual_scope.py ZK-1496 --conf conf/samples/zk-1208.properties
   benchmark/scripts/filter_manual_scope.py HBASE-27671 --extra-class org.apache.hadoop.hbase.io.HFileLink
 
 Output: inv_manual_scope/<TICKET>/manual[_strict].verified_invs, in the original format.

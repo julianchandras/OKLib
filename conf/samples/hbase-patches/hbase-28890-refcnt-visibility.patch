@@ -1,0 +1,25 @@
+Make RefCnt.detector public on the pre-fix build.
+
+HBASE-28890's own fix widens this field from private to public so its regression test can
+install a leak listener. OKLib runs the patched test class against the unpatched build, so
+on HEAD~1 (440a0f34c9) the test dies immediately with
+
+  java.lang.IllegalAccessError: tried to access field org.apache.hadoop.hbase.nio.RefCnt.detector
+      at TestHFileBlockIndex.testBlockIndexWithOffHeapBuffer(TestHFileBlockIndex.java:194)
+
+leaving a 7 KB unpatched trace (25 events) and nothing to diff against. This applies only the
+visibility change -- never the HFileBlockIndex release() that is the actual bug fix -- so the
+unpatched build still contains the leak. On the patched checkout `git apply` fails (already
+public) and the compile command swallows it with `|| true`.
+
+--- a/hbase-common/src/main/java/org/apache/hadoop/hbase/nio/RefCnt.java
++++ b/hbase-common/src/main/java/org/apache/hadoop/hbase/nio/RefCnt.java
+@@ -38,7 +38,7 @@ import org.apache.hbase.thirdparty.io.netty.util.ResourceLeakTracker;
+ @InterfaceAudience.Private
+ public class RefCnt extends AbstractReferenceCounted {
+ 
+-  private static final ResourceLeakDetector<RefCnt> detector =
++  public static final ResourceLeakDetector<RefCnt> detector =
+     ResourceLeakDetectorFactory.instance().newResourceLeakDetector(RefCnt.class);
+   private final Recycler recycler;
+   private final ResourceLeakTracker<RefCnt> leak;
